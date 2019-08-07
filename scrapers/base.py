@@ -1,32 +1,37 @@
+"""
+This module contains scrapers designed to extract data from various webpages to build custom datasets.
+Please note that many web scraping may be against the terms of use of some websites. Such websites will attempt to limit
+web scraping, and may even block
+"""
 
 from bs4 import BeautifulSoup
-import abc, logging, requests, json, pandas as pd
+import abc, logging, requests, json, time, pandas as pd
 import settings
 
 class Scraper(abc.ABC):
-    """Abstract base class for a web crawler that can extract and save data from pages on a website"""
+    """Abstract base class for a web crawler that can extract and save data from pages on a website."""
 
     def __init__(self, base_url:str):
         # Input parameter values
         self.base_url = base_url
 
         # Settings values - may be overriden by child classes
-        self.sleep_interval = settings.SLEEP_INTERVAL
+        self.crawl_delay = settings.CRAWL_DELAY
 
         # Other values
-        self.logger = logging.getLogger(self.__class__.__name__)
         self.session = requests.Session()
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.valid_file_types = ['csv', 'json', 'html']
 
     @abc.abstractmethod
     def scrape(self):
-        """Extracts data from a website and appends it to the underlying data storage structure"""
+        """Extracts data from a website and appends it to the underlying data storage structure."""
         pass
 
     def write(self, filename, data, features=None) -> str:
         """
-        Writes the contents of the 'data' parameter to the file specified by the 'filename' parameter, overwriting it if necessary.
-        The optional 'features' parameter specifies which features of the data should be written for applicable file types.
+        Writes the contents of the ``data`` parameter to the file specified by the ``filename`` parameter, overwriting it if necessary.
+        The optional ``features`` parameter specifies which features of the data should be written for applicable file types.
         """
         # Initialize file parameters from settings and keyword arguments
         output_folder       = settings.DATASETS_FOLDER
@@ -60,7 +65,7 @@ class Scraper(abc.ABC):
         return output_file
 
     def get_robots_txt(self) -> str:
-        """Extracts and returns the robots.txt of the root website if it can be found"""
+        """Extracts and returns the robots.txt of the root website if it can be found."""
         self.logger.info('Extracting robots.txt')
         robots_link = self.base_url.strip('/') + '/' + 'robots.txt'
         robots_page = self.session.get(robots_link)
@@ -68,9 +73,18 @@ class Scraper(abc.ABC):
             return robots_page.text
         else:
             return ''
+
+    def _delay(self) -> int:
+        """Pauses execution of the program for a short duration and returns the delay in seconds.
+        
+        This method is intended to be used only by subclasses to throttle the rate of requests 
+        and should be called between each request.
+        """
+        time.sleep(self.crawl_delay)
+        return self.crawl_delay
   
 class DataScraper(Scraper):
-    """A web crawler that can extract and save cleaned data from a website in a structured format"""
+    """A web crawler that can extract and save cleaned data from a website in a structured format."""
     
     def __init__(self, base_url:str, features:list):
         super().__init__(base_url)
@@ -79,7 +93,7 @@ class DataScraper(Scraper):
         self.valid_file_types = ['csv', 'json']
 
     def write(self, filename) -> str:
-        """Writes the data extracted by the scraper to the file specified by the 'filename' parameter, overwriting it if necessary."""
+        """Writes the data extracted by the scraper to the file specified by the ``filename`` parameter, overwriting it if necessary."""
         return super().write(filename, self.data, self.features)
 
     def append_row(self, row:dict):
@@ -91,11 +105,11 @@ class DataScraper(Scraper):
         self.data += rows 
 
     def get_dataframe(self) -> pd.DataFrame():
-        """Returns the data extracted by the scraper in a pandas DataFrame object"""
+        """Returns the data extracted by the scraper in a pandas DataFrame object."""
         return pd.DataFrame(self.data, columns=self.features)
 
 class WebScraper(Scraper):
-    """A web crawler that can extract and save the HTML of a website"""
+    """A web crawler that can extract and save the HTML of a website."""
 
     def __init__(self, base_url:str):
         super().__init__(base_url)
@@ -103,7 +117,7 @@ class WebScraper(Scraper):
         self.valid_file_types = ['html']
 
     def write(self, filename) -> str:
-        """Writes the HTML extracted by the scraper to the file specified by the 'filename' parameter, overwriting it if necessary."""
+        """Writes the HTML extracted by the scraper to the file specified by the ``filename`` parameter, overwriting it if necessary."""
         return super().write(filename, self.html)
 
 if __name__ == "__main__":
