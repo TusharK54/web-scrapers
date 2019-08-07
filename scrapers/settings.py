@@ -7,4 +7,4 @@ DELIMITER = ','
 QUOTECHAR = '"'
 
 # Crawler settings
-SLEEP_INTERVAL = 5
+CRAWL_DELAY = 5
